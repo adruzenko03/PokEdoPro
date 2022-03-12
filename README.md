@@ -1,2 +1,2 @@
 # PokEdoPro
-Pokemon TCG cards made compatible with the ygopro "YuGiOh" duel scripting engine
+Pokemon TCG cards made compatible with the ygopro "Yu-Gi-Oh" duel scripting engine
