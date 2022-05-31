@@ -1,6 +1,9 @@
 --Pokemon TCG
 --Scripted by adruzenko03
+
+--ID System: 9..+Set name through converter+number of card (add 9s for there to be 9 characters in ID)
 local s,id=GetID()
+local handTest=false;
 function s.initial_effect(c)
 	aux.EnableExtraRules(c,s,s.init)
 end
@@ -93,11 +96,70 @@ function s.init(c)
     local e16=Effect.CreateEffect(c)
 	e16:SetType(EFFECT_TYPE_FIELD+EFFECT_TYPE_CONTINUOUS)
 	e16:SetProperty(EFFECT_FLAG_DELAY+EFFECT_FLAG_IGNORE_IMMUNE+EFFECT_FLAG_UNCOPYABLE)
+    e16:SetCategory(CATEGORY_POSITION)
 	e16:SetCode(EVENT_LEAVE_FIELD)
     e16:SetCondition(s.pivcon)
 	e16:SetTarget(s.pivtg)
 	e16:SetOperation(s.pivop)
 	Duel.RegisterEffect(e16,0)
+
+    --atk down
+	local e17=Effect.CreateEffect(c)
+	e17:SetType(EFFECT_TYPE_FIELD)
+    e17:SetProperty(EFFECT_FLAG_IGNORE_IMMUNE+EFFECT_FLAG_UNCOPYABLE)
+	e17:SetCode(EFFECT_UPDATE_ATTACK)
+	e17:SetTargetRange(LOCATION_MZONE,LOCATION_MZONE)
+	e17:SetValue(s.atkval)
+	Duel.RegisterEffect(e17,0)
+	--destroy
+	local e18=Effect.CreateEffect(c)
+	e18:SetCategory(CATEGORY_DESTROY)
+    e18:SetProperty(EFFECT_FLAG_DELAY+EFFECT_FLAG_IGNORE_IMMUNE+EFFECT_FLAG_UNCOPYABLE)
+	e18:SetType(EFFECT_TYPE_FIELD+EFFECT_TYPE_CONTINUOUS)
+	e18:SetCode(EVENT_CHAIN_SOLVED) --Doesn't work with Event_adjust
+    e18:SetCondition(s.descon)
+	e18:SetOperation(s.desop)
+	Duel.RegisterEffect(e18,0)
+
+    --End turn on Attack
+    local e19=Effect.CreateEffect(c)
+    e19:SetProperty(EFFECT_FLAG_DELAY+EFFECT_FLAG_IGNORE_IMMUNE+EFFECT_FLAG_UNCOPYABLE)
+    e19:SetType(EFFECT_TYPE_FIELD+EFFECT_TYPE_CONTINUOUS)
+	e19:SetCode(EVENT_CHAINING) 
+    e19:SetCondition(s.endcon)
+	e19:SetOperation(s.endop)
+	Duel.RegisterEffect(e19,0)
+
+    --One Energy
+	local e20=Effect.CreateEffect(c)
+    e20:SetProperty(EFFECT_FLAG_DELAY+EFFECT_FLAG_IGNORE_IMMUNE+EFFECT_FLAG_UNCOPYABLE)
+	e20:SetType(EFFECT_TYPE_FIELD+EFFECT_TYPE_CONTINUOUS)
+	e20:SetCode(EVENT_CHAINING)
+	e20:SetCondition(s.enercon)
+	e20:SetOperation(s.enerop)
+	Duel.RegisterEffect(e20,0)
+
+    --One Retreat
+    local e22=e20:Clone()
+    e22:SetCondition(s.retcon)
+	e22:SetOperation(s.retop)
+	Duel.RegisterEffect(e22,0)
+
+    --One Supporter
+    local e24=e20:Clone()
+    e24:SetCondition(s.supcon)
+    e24:SetOperation(s.supop)
+    Duel.RegisterEffect(e24,0)
+
+    --One Stadium
+	local e26=Effect.CreateEffect(c)
+    e26:SetProperty(EFFECT_FLAG_DELAY+EFFECT_FLAG_IGNORE_IMMUNE+EFFECT_FLAG_UNCOPYABLE)
+	e26:SetType(EFFECT_TYPE_FIELD+EFFECT_TYPE_CONTINUOUS)
+	e26:SetCode(EVENT_CHAINING)
+	e26:SetCondition(s.stadcon)
+	e26:SetOperation(s.stadop)
+	Duel.RegisterEffect(e26,0)
+    --Next is 29--
 end
 
 
@@ -131,7 +193,8 @@ function s.desttp(e,tp,eg,ep,ev,re,r,rp)
 end
 
 function s.destop(tp,eg)
-    local p=eg:FilterCount(s.filtdest,nil,tp)
+    local p=eg:FilterCount(s.filtdest1,nil,tp)
+    p=p + 2*eg:FilterCount(s.filtdest2,nil,tp)
     local bancount
     local ind
     local g
@@ -157,7 +220,7 @@ end
 
 function s.pivcon(e,tp,eg,ep,ev,re,r,rp)
     local upper=2
-    if Duel.GetMatchingGroupCount(s.spdfilter,1-tp,LOCATION_DECK,0,nil) then
+    if handTest then
         upper=1
     end
 
@@ -188,17 +251,116 @@ function s.pivop(e,tp,eg,ep,ev,re,r,rp)
     local tc,sc=Duel.GetFirstTarget()
     local p1=eg:FilterCount(s.filterpivot,nil,tp)
     local p2=eg:FilterCount(s.filterpivot,nil,1-tp)
-    if p1>0 then
+    if p1>0 and tc~=nil then
         Duel.MoveSequence(tc,5)
         tc=sc
     end
 
-    if p2>0 then
+    if p2>0 and tc~=nil then
         Duel.MoveSequence(tc,5)
     end
 end
 
 
+function s.atkval(e,c)
+	return c:GetCounter(0x1300)*-10
+end
+
+
+function s.descon(e,tp,eg,ep,ev,re,r,rp)
+    return Duel.GetMatchingGroupCount(s.atkfilter,tp,LOCATION_MZONE,LOCATION_MZONE,nil)>0
+end
+
+function s.desop(e,tp,eg,ep,ev,re,r,rp)
+    local g=Duel.GetMatchingGroup(s.atkfilter,tp,LOCATION_MZONE,LOCATION_MZONE,nil)
+
+	if #g>0 then
+		Duel.Destroy(g,REASON_EFFECT)
+	end
+end
+
+
+function s.endcon(e,tp,eg,ep,ev,re,r,rp)
+    return re:IsHasCategory(CATEGORY_DAMAGE)
+end
+
+function s.endop(e,tp,eg,ep,ev,re,r,rp)
+    local p=1;
+    if(re:GetHandlerPlayer()==tp) then
+        p=0;
+    end
+
+    Duel.SkipPhase(p,PHASE_DRAW,RESET_PHASE+PHASE_END,1)
+    Duel.SkipPhase(p,PHASE_STANDBY,RESET_PHASE+PHASE_END,1)
+    Duel.SkipPhase(p,PHASE_MAIN1,RESET_PHASE+PHASE_END,1)
+    Duel.SkipPhase(p,PHASE_BATTLE,RESET_PHASE+PHASE_END,1,1)
+    Duel.SkipPhase(p,PHASE_MAIN2,RESET_PHASE+PHASE_END,1)
+end
+
+function s.enercon(e,tp,eg,ep,ev,re,r,rp)
+    return re:GetHandler():IsSetCard(0x700)
+end
+
+function s.enerop(e,tp,eg,ep,ev,re,r,rp)
+    local e21=Effect.CreateEffect(e:GetHandler())
+	e21:SetType(EFFECT_TYPE_FIELD)
+	e21:SetCode(EFFECT_CANNOT_ACTIVATE)
+	e21:SetRange(LOCATION_ALL)
+	e21:SetProperty(EFFECT_FLAG_PLAYER_TARGET)
+	e21:SetTargetRange(1,1)
+    e21:SetReset(RESET_PHASE+PHASE_END)
+	e21:SetValue(s.enerfilt)
+	Duel.RegisterEffect(e21,tp)
+end
+
+function s.retcon(e,tp,eg,ep,ev,re,r,rp)
+    return re:IsHasCategory(CATEGORY_DEFCHANGE)
+end
+
+function s.retop(e,tp,eg,ep,ev,re,r,rp)
+    local e23=Effect.CreateEffect(e:GetHandler())
+	e23:SetType(EFFECT_TYPE_FIELD)
+	e23:SetCode(EFFECT_CANNOT_ACTIVATE)
+	e23:SetRange(LOCATION_ALL)
+	e23:SetProperty(EFFECT_FLAG_PLAYER_TARGET)
+	e23:SetTargetRange(1,1)
+    e23:SetReset(RESET_PHASE+PHASE_END)
+	e23:SetValue(s.retfilt)
+	Duel.RegisterEffect(e23,tp)
+end
+
+function s.supcon(e,tp,eg,ep,ev,re,r,rp)
+    return re:GetHandler():IsSetCard(0x710)
+end
+
+function s.supop(e,tp,eg,ep,ev,re,r,rp)
+    local e25=Effect.CreateEffect(e:GetHandler())
+	e25:SetType(EFFECT_TYPE_FIELD)
+	e25:SetCode(EFFECT_CANNOT_ACTIVATE)
+	e25:SetRange(LOCATION_ALL)
+	e25:SetProperty(EFFECT_FLAG_PLAYER_TARGET)
+	e25:SetTargetRange(1,1)
+    e25:SetReset(RESET_PHASE+PHASE_END)
+	e25:SetValue(s.supfilt)
+	Duel.RegisterEffect(e25,tp)
+end
+
+function s.stadcon(e,tp,eg,ep,ev,re,r,rp)
+    return re:IsActiveType(TYPE_FIELD) and re:IsHasType(EFFECT_TYPE_ACTIVATE)
+end
+
+function s.stadop(e,tp,eg,ep,ev,re,r,rp)
+    local e27=Effect.CreateEffect(e:GetHandler())
+	e27:SetType(EFFECT_TYPE_FIELD)
+	e27:SetCode(EFFECT_CANNOT_ACTIVATE)
+	e27:SetRange(LOCATION_ALL)
+	e27:SetProperty(EFFECT_FLAG_PLAYER_TARGET)
+	e27:SetTargetRange(1,1)
+    e27:SetReset(RESET_PHASE+PHASE_END)
+	e27:SetValue(s.stadfilt)
+	Duel.RegisterEffect(e27,tp)
+    Duel.SendtoGrave(Duel.GetMatchingGroup(aux.TRUE,tp,LOCATION_FZONE,LOCATION_FZONE,re:GetHandler()), REASON_EFFECT)
+end
 function s.con(e,tp,eg,ep,ev,re,r,rp)
     return Duel.GetTurnCount()==1
 end
@@ -215,21 +377,21 @@ function s.op(e,tp,eg,ep,ev,re,r,rp)
     Duel.Draw(1-tp,7,REASON_EFFECT)
 
     --Check if at least 1 basic is in deck
-    local g1=Duel.GetMatchingGroupCount(s.spdfilter,tp,LOCATION_DECK,0,nil)
-    local g2=Duel.GetMatchingGroupCount(s.spdfilter,1-tp,LOCATION_DECK,0,nil)
+    local g1=Duel.GetMatchingGroupCount(s.spdfilter,tp,LOCATION_ALL,0,nil)
+    local g2=Duel.GetMatchingGroupCount(s.spdfilter,1-tp,LOCATION_ALL,0,nil)
     local wtp=g1==0
 	local wntp=g2==0
     if wtp and not wntp then
 		Duel.Win(1-tp,0x62)
 	elseif not wtp and wntp then
-        s.pl1op(e,tp)
 		Duel.Win(tp,0x62)
+        s.pl1op(e,tp)
         return
 	elseif wtp and wntp then
 		Duel.Win(PLAYER_NONE,0x62)
     end
     if wtp or wntp then
-        Debug.Message("No Pokemon in deck, skipping mulligan phase")
+        Debug.Message("No Basic Pokemon in deck, skipping mulligan phase")
         s.seteff(e)
         return
     end
@@ -306,6 +468,7 @@ end
 function s.pl1op(e,tp)
     local extra=Duel.GetMatchingGroupCount(s.extrafilter,tp,LOCATION_MZONE,LOCATION_MZONE,nil)
     local mulltp
+    handTest=true
 
     while(extra<1)
     do
@@ -331,11 +494,10 @@ end
 
 function s.mullhelp(tp)
     local g=Duel.GetMatchingGroup(s.sphfilter,tp,LOCATION_HAND,0,nil)
-    local mulltp,mullcurr,endnew=0,0,false
+    local mulltp,mullcurr,endnew=tp,0,false
     
     if #g==0 then
         mullcurr=1
-        mulltp=tp
     else
         --Active
         local sc=g:Select(tp,1,1,nil):GetFirst()
@@ -377,6 +539,18 @@ function s.seteff(e)
         e7:SetCode(EFFECT_CANNOT_SPECIAL_SUMMON)
         e7:SetTarget(s.sumlimit)
         Duel.RegisterEffect(e7,0)
+
+        --Cannot Activate Supporter First Turn
+        local e28=Effect.CreateEffect(e:GetHandler())
+        e28:SetType(EFFECT_TYPE_FIELD)
+        e28:SetCode(EFFECT_CANNOT_ACTIVATE)
+        e28:SetRange(LOCATION_ALL)
+        e28:SetProperty(EFFECT_FLAG_PLAYER_TARGET)
+        e28:SetTargetRange(1,1)
+        e28:SetReset(RESET_PHASE+PHASE_END)
+        e28:SetValue(s.supfilt)
+        Duel.RegisterEffect(e28,0)
+
         
         --Win Con:Prize Cards
         local e10=Effect.CreateEffect(e:GetHandler())
@@ -392,6 +566,7 @@ function s.seteff(e)
         e11:SetCode(EVENT_LEAVE_FIELD)
         e11:SetOperation(s.opwin2)
         Duel.RegisterEffect(e11,0)
+
 end
 
 
@@ -424,8 +599,12 @@ function s.opwin2(e,tp,eg,ep,ev,re,r,rp)
 end
 
 
-function s.filtdest(c,tp)
-    return c:IsReason(REASON_DESTROY) and c:GetPreviousControler()~=tp
+function s.filtdest1(c,tp)
+    return c:IsReason(REASON_DESTROY) and c:GetPreviousControler()~=tp and not c:IsSetCard(0x750)
+end
+
+function s.filtdest2(c,tp)
+    return c:IsReason(REASON_DESTROY) and c:GetPreviousControler()~=tp and c:IsSetCard(0x750)
 end
 
 function s.filterpivot(c,tp)
@@ -447,4 +626,21 @@ end
 
 function s.extrafilter(c)
     return c:GetSequence()>=5
+end
+
+function s.atkfilter(c)
+    return c:GetAttack()==0
+end
+
+function s.enerfilt(e,re,tp)
+    return re:GetHandler():IsSetCard(0x700)
+end
+function s.retfilt(e,re,tp)
+    return re:IsHasCategory(CATEGORY_DEFCHANGE)
+end
+function s.supfilt(e,re,tp)
+    return re:GetHandler():IsSetCard(0x710)
+end
+function s.stadfilt(e,re,tp)
+    return re:IsActiveType(TYPE_FIELD) and re:IsHasType(EFFECT_TYPE_ACTIVATE)
 end
